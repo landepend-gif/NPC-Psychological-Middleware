@@ -1,0 +1,521 @@
+/* --- 全局变量配置 --- */
+:root {
+    --bg-dark: #0f172a;      /* 深蓝背景 */
+    --panel-bg: #1e293b;     /* 面板背景 */
+    --border: #334155;       /* 边框颜色 */
+    --primary: #10b981;      /* 主色调 (绿) */
+    --danger: #ef4444;       /* 警告色 (红) */
+    --accent: #3b82f6;       /* 强调色 (蓝) */
+    --text-main: #f1f5f9;    /* 主文字 */
+    --text-sub: #94a3b8;     /* 次级文字 */
+}
+
+/* --- 基础重置 --- */
+body { 
+    margin: 0; 
+    font-family: 'Segoe UI', sans-serif; 
+    background: var(--bg-dark); 
+    color: var(--text-main); 
+    height: 100vh; 
+    overflow: hidden; 
+}
+
+#app { display: flex; width: 100%; height: 100%; }
+[v-cloak] { display: none; } /* 防止 Vue 加载前闪烁 */
+
+/* =========================================
+   1. 左侧侧边栏 (Sidebar)
+   ========================================= */
+.sidebar {
+    width: 320px;
+    min-width: 320px;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--border);
+    display: flex; 
+    flex-direction: column; 
+    padding: 15px; 
+    gap: 15px;             
+    z-index: 10;
+    box-shadow: 4px 0 15px rgba(0,0,0,0.2);
+    
+    /* 🔥 核心修改 1：限制最大高度为屏幕高度，并允许整个侧边栏出现滚动条 */
+    height: 100vh;
+    box-sizing: border-box; 
+    overflow-y: auto; 
+}
+
+/* 隐藏外层侧边栏自带的丑陋滚动条（为了美观，仅保留滚动功能） */
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+/* --- 顶部标题区 --- */
+.panel-header { 
+    flex-shrink: 0; 
+    border-bottom: 1px solid var(--border); 
+    padding-bottom: 5px; 
+}
+.app-title { 
+    font-size: 1.2rem; 
+    font-weight: 800; 
+    color: var(--accent); 
+    display: flex; 
+    align-items: center; 
+    gap: 10px; 
+}
+.version { font-size: 0.6em; opacity: 0.5; font-weight: normal; }
+
+/* --- 🔥 中间：世界地图容器 --- */
+.world-container {
+    /* 🔥 核心修改 2：取消这里的 flex: 1 和 overflow，让内容自然撑开它的真实高度 */
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* --- 底部：控制按钮组 --- */
+.control-group { 
+    flex-shrink: 0;         
+    display: flex; 
+    gap: 10px; 
+    /* 当上方卡片比较少时，这个属性会让按钮和仪表盘自动吸附在最底部 */
+    margin-top: auto; 
+}
+
+/* --- 底部：仪表盘 (Dashboard) --- */
+.dashboard { 
+    flex-shrink: 0;         
+    background: rgba(0,0,0,0.2); 
+    padding: 15px; 
+    border-radius: 10px; 
+    border: 1px solid var(--border); 
+}
+
+/* 自定义滚动条样式 (仅作用于地点列表) */
+.world-container::-webkit-scrollbar { width: 4px; }
+.world-container::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+.world-container::-webkit-scrollbar-track { background: transparent; }
+
+.loading-tip { 
+    text-align: center; 
+    color: var(--text-sub); 
+    font-size: 0.9rem; 
+    margin-top: 20px; 
+}
+
+/* --- 🔥 地点卡片 (Location Card) --- */
+.location-card {
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: 0.2s;
+}
+.location-card:hover { border-color: #475569; }
+
+.loc-header {
+    background: rgba(15, 23, 42, 0.6);
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.loc-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    display: flex; align-items: center; gap: 6px;
+}
+.loc-title i { color: var(--accent); opacity: 0.8; }
+
+.loc-desc {
+    font-size: 0.7rem;
+    color: #64748b;
+    margin-top: 2px;
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; /* 文字过长显示省略号 */
+}
+
+.loc-chars {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.empty-loc {
+    font-size: 0.75rem; 
+    color: #475569; 
+    text-align: center; 
+    padding: 5px; 
+    font-style: italic;
+}
+
+/* --- 🔥 人物芯片 (Character Chip) --- */
+.char-chip {
+    display: flex; 
+    align-items: center; 
+    gap: 10px;
+    background: rgba(255,255,255,0.03);
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+}
+.char-chip:hover { background: rgba(255,255,255,0.08); }
+
+/* 选中状态 */
+.char-chip.active { 
+    background: rgba(16, 185, 129, 0.1); 
+    border-color: rgba(16, 185, 129, 0.4); 
+}
+
+/* 头像圆圈 */
+.chip-avatar {
+    width: 32px; height: 32px;
+    background: #334155;
+    border-radius: 50%;
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+    font-weight: bold; 
+    color: #cbd5e1; 
+    font-size: 0.8rem;
+}
+/* 选中时的头像高亮 */
+.char-chip.active .chip-avatar { background: var(--primary); color: white; }
+
+.chip-info { flex: 1; display: flex; flex-direction: column; }
+.chip-name { font-size: 0.85rem; font-weight: 600; color: #f1f5f9; }
+.chip-role { font-size: 0.7rem; color: #94a3b8; }
+
+/* 状态指示器区 */
+.status-indicator { display: flex; align-items: center; gap: 6px; }
+
+/* 奔跑图标动画 */
+.status-indicator i { 
+    font-size: 0.7rem; 
+    color: #f59e0b; 
+    animation: pulse 2s infinite; 
+}
+@keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
+/* 连接状态点 */
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #475569; transition: 0.3s; }
+.dot.connected { background: var(--primary); box-shadow: 0 0 6px var(--primary); }
+
+/* --- 控制按钮组 --- */
+.control-group { display: flex; gap: 10px; margin-top: auto; margin-bottom: 10px;}
+.btn-control { 
+    flex: 1; padding: 10px; border: none; border-radius: 6px; 
+    cursor: pointer; font-weight: 600; 
+    display: flex; align-items: center; justify-content: center; gap: 6px; 
+    transition: 0.2s; 
+}
+.btn-start { background: rgba(16, 185, 129, 0.15); color: var(--primary); border: 1px solid rgba(16, 185, 129, 0.5); }
+.btn-start:hover { background: var(--primary); color: #fff; }
+.btn-start.btn-disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }
+
+.btn-end { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.5); }
+.btn-end:hover { background: var(--danger); color: #fff; }
+.btn-end.btn-disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(1); }
+
+/* --- 仪表盘 (Dashboard) --- */
+.dashboard { 
+    background: rgba(0,0,0,0.2); 
+    padding: 15px; 
+    border-radius: 10px; 
+    border: 1px solid var(--border); 
+}
+.dash-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.dash-label { font-size: 0.85rem; color: var(--text-sub); }
+.mood-tag { font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; background: #334155; }
+.trust-row { font-size: 0.9rem; margin-bottom: 15px; color: #cbd5e1; }
+.trust-val { color: var(--primary); font-weight: bold; margin-left: 5px; }
+.pad-row { margin-bottom: 8px; }
+.pad-meta { font-size: 0.75rem; color: var(--text-sub); margin-bottom: 2px; }
+.progress-track { height: 14px; background: #334155; border-radius: 7px; position: relative; overflow: hidden; }
+.progress-bar { height: 100%; transition: width 0.5s ease, background 0.3s; }
+.progress-text { position: absolute; width: 100%; text-align: center; line-height: 14px; font-size: 0.65rem; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.8); z-index: 2; font-weight: bold; }
+
+/* =========================================
+   2. 主内容区 (Main Area)
+   ========================================= */
+.main-area { 
+    flex: 1; 
+    display: flex; 
+    flex-direction: column; 
+    background: #0b1120; 
+    position: relative; 
+    min-width: 0; 
+}
+
+.chat-header { 
+    height: 60px; 
+    padding: 0 25px; 
+    border-bottom: 1px solid var(--border); 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    background: rgba(30, 41, 59, 0.95); 
+}
+.current-role-name { font-weight: 700; font-size: 1.1rem; display: flex; align-items: center; }
+
+/* 🔥 头部地点标签 */
+.header-loc-tag {
+    font-size: 0.8rem; 
+    background: #334155; 
+    color: #cbd5e1; 
+    padding: 2px 8px; 
+    border-radius: 4px; 
+    margin-right: 8px; 
+    font-weight: normal;
+}
+
+.connection-badge { 
+    font-size: 0.8rem; 
+    padding: 4px 12px; 
+    border-radius: 20px; 
+    background: #334155; 
+    color: #94a3b8; 
+    display: flex; 
+    align-items: center; 
+    gap: 6px; 
+}
+.connection-badge.online { 
+    background: rgba(16, 185, 129, 0.1); 
+    color: var(--primary); 
+    border: 1px solid rgba(16, 185, 129, 0.3); 
+}
+
+/* --- 聊天记录容器 --- */
+.chat-container { 
+    flex: 1; 
+    padding: 20px; 
+    overflow-y: auto; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 15px; 
+    scroll-behavior: smooth; 
+}
+
+.empty-state { margin: auto; text-align: center; color: var(--text-sub); opacity: 0.6; }
+.empty-state i { font-size: 3rem; margin-bottom: 15px; }
+
+.message-row { display: flex; flex-direction: column; max-width: 75%; }
+.message-row.user { align-self: flex-end; align-items: flex-end; }
+.message-row.npc { align-self: flex-start; }
+
+.system-text { 
+    align-self: center; 
+    font-size: 0.8rem; 
+    color: #64748b; 
+    background: rgba(255,255,255,0.05); 
+    padding: 4px 12px; 
+    border-radius: 12px; 
+    margin: 10px 0; 
+}
+
+.msg-bubble { 
+    padding: 12px 16px; 
+    border-radius: 12px; 
+    line-height: 1.6; 
+    font-size: 0.95rem; 
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+    position: relative; 
+}
+.npc-bubble { background: #2d3748; color: #e2e8f0; border-top-left-radius: 2px; }
+.user-bubble { background: var(--accent); color: white; border-top-right-radius: 2px; }
+
+.thought-bubble { 
+    background: #1e293b; 
+    color: #94a3b8; 
+    padding: 8px 12px; 
+    border-radius: 8px; 
+    font-size: 0.85rem; 
+    font-style: italic; 
+    margin-bottom: 6px; 
+    border-left: 3px solid #64748b; 
+    align-self: flex-start; 
+    max-width: 90%; 
+}
+
+/* 🔥 行动标签 (Action Tag) */
+.action-tag {
+    margin-top: 8px; 
+    font-size: 0.75rem; 
+    color: #f59e0b; 
+    background: rgba(245, 158, 11, 0.1); 
+    padding: 2px 6px; 
+    border-radius: 4px; 
+    display: inline-block;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+/* --- 底部输入区 --- */
+.input-panel { 
+    padding: 20px; 
+    background: var(--panel-bg); 
+    border-top: 1px solid var(--border); 
+    display: flex; 
+    gap: 10px; 
+}
+.chat-input { 
+    flex: 1; 
+    background: #0f172a; 
+    border: 1px solid var(--border); 
+    color: white; 
+    padding: 12px 15px; 
+    border-radius: 8px; 
+    outline: none; 
+    transition: 0.3s; 
+}
+.chat-input:focus { border-color: var(--accent); }
+.btn-send { 
+    background: var(--accent); 
+    color: white; 
+    border: none; 
+    width: 50px; 
+    border-radius: 8px; 
+    cursor: pointer; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    font-size: 1.1rem; 
+}
+.btn-send:disabled { background: #475569; cursor: not-allowed; }
+
+/* 全局滚动条样式 */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+/* =========================================
+   3. 深度心理画像弹窗 (Modal)
+   ========================================= */
+.btn-profile {
+    width: 100%;
+    margin-top: 15px;
+    padding: 8px;
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: 0.3s;
+}
+.btn-profile:hover { background: var(--accent); color: white; }
+
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.profile-modal {
+    background: #1e293b;
+    width: 800px;
+    max-width: 90vw;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.8);
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+.modal-header h3 { margin: 0; font-size: 1.1rem; color: #f8fafc; }
+.btn-close {
+    background: transparent; border: none; color: var(--text-sub);
+    font-size: 1.2rem; cursor: pointer; transition: 0.2s;
+}
+.btn-close:hover { color: var(--danger); }
+
+.modal-body {
+    padding: 20px;
+    display: flex;
+    gap: 20px;
+}
+
+.chart-container {
+    flex: 1;
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.05);
+    padding: 10px;
+}
+.chart-container h4 {
+    margin: 0 0 10px 0;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #cbd5e1;
+}
+.echart-box {
+    width: 100%;
+    height: 300px; /* 图表高度 */
+}
+
+/* =========================================
+   4. 记忆流时间轴样式 (Memory Timeline)
+   ========================================= */
+.memory-modal { width: 700px; height: 80vh; }
+.memory-body { overflow-y: auto; display: block; padding: 30px; }
+
+.timeline-container {
+    position: relative;
+    padding-left: 30px;
+}
+.timeline-container::before {
+    content: ''; position: absolute; left: 15px; top: 0; bottom: 0;
+    width: 2px; background: rgba(255,255,255,0.1);
+}
+
+.timeline-item {
+    position: relative; margin-bottom: 25px;
+}
+.timeline-dot {
+    position: absolute; left: -45px; top: 0;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: #1e293b; border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; color: #cbd5e1; z-index: 2;
+}
+.timeline-content {
+    background: rgba(0,0,0,0.2); border: 1px solid var(--border);
+    padding: 15px; border-radius: 8px;
+}
+
+.mem-meta { display: flex; gap: 15px; align-items: center; margin-bottom: 8px; font-size: 0.8rem; }
+.mem-time { color: #64748b; }
+.mem-type { padding: 2px 8px; border-radius: 4px; font-weight: bold; }
+.mem-importance { color: #f59e0b; font-size: 0.7rem; }
+.mem-text { color: #e2e8f0; line-height: 1.5; font-size: 0.95rem; }
+
+/* 记忆类型色彩主题 */
+.type-background .timeline-dot { border-color: #10b981; color: #10b981; }
+.type-background .mem-type { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+
+.type-conversation .timeline-dot { border-color: #3b82f6; color: #3b82f6; }
+.type-conversation .mem-type { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+
+.type-observation .timeline-dot { border-color: #94a3b8; color: #94a3b8; }
+.type-observation .mem-type { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
+
+.type-reflection .timeline-dot { border-color: #f59e0b; color: #f59e0b; box-shadow: 0 0 10px rgba(245, 158, 11, 0.5); }
+.type-reflection .mem-type { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+.type-reflection .timeline-content { border-color: rgba(245, 158, 11, 0.4); }

@@ -1,0 +1,4 @@
+{
+  "importance_scoring": "请对以下事件对 {npc_name} 的重要性进行打分（1-10分）。\n事件：{description}\n只返回一个数字，不要任何解释。",
+  "reflection_generation": "以下是 {npc_name} 最近的一系列记忆：\n{memory_stream}\n\n请根据以上事实，提炼出 1-2 个关于 {npc_name} 的内心想法或对他人的高层级看法（不要重复具体事件，要抽象出观点）。"
+}

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>通用认知中台 - 配置中心</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.staticfile.net/vue/3.3.4/vue.global.prod.min.js"></script>
+    <style>
+        /* 针对配置中心的专属简单覆盖样式 */
+        body { background: #0b1120; padding: 20px; overflow-y: auto; }
+        .config-container { max-width: 1000px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px;}
+        .card { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px;}
+    </style>
+</head>
+<body>
+
+<div id="config-app" class="config-container" v-cloak>
+    <div class="header">
+        <h2 style="color: var(--accent); margin: 0;"><i class="fas fa-server"></i> 通用游戏角色心理中台系统</h2>
+        <button onclick="window.close()" style="padding: 8px 16px; border-radius: 4px; background: #334155; color: white; border: none; cursor: pointer;">返回大地图</button>
+    </div>
+
+    <div class="card" style="display: flex; gap: 20px;">
+        <div style="width: 250px; border-right: 1px solid var(--border); padding-right: 20px;">
+            <h4 style="margin-top: 0; color: #cbd5e1;">👥 已接入角色</h4>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button v-for="(char, id) in allCharacters" :key="id" 
+                        @click="editCharacter(id)"
+                        style="padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: #e2e8f0; border-radius: 6px; cursor: pointer; text-align: left; transition: 0.2s;"
+                        :style="currentForm.char_id === id ? 'border-color: var(--accent); background: rgba(59, 130, 246, 0.1);' : ''">
+                    <i class="fas fa-user-astronaut"></i> {{ char.name }} ({{ id }})
+                </button>
+                <button @click="createNew" style="padding: 10px; background: rgba(16, 185, 129, 0.15); border: 1px dashed var(--primary); color: var(--primary); border-radius: 6px; cursor: pointer;">
+                    <i class="fas fa-plus"></i> 新建数字生命
+                </button>
+            </div>
+        </div>
+
+        <div style="flex: 1;">
+            <h4 style="margin-top: 0; color: #cbd5e1;"><i class="fas fa-sliders-h"></i> 属性调制器</h4>
+            
+            <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                <div style="flex: 1;">
+                    <label style="display: block; font-size: 0.8rem; color: var(--text-sub); margin-bottom: 5px;">角色英文 ID (唯一)</label>
+                    <input type="text" v-model="currentForm.char_id" :disabled="isEditing" placeholder="例如: xiao_ming" style="width: 100%; padding: 8px; background: #0f172a; border: 1px solid var(--border); color: white; border-radius: 4px; box-sizing: border-box;">
+                </div>
+                <div style="flex: 1;">
+                    <label style="display: block; font-size: 0.8rem; color: var(--text-sub); margin-bottom: 5px;">显示姓名</label>
+                    <input type="text" v-model="currentForm.name" placeholder="例如: 小明" style="width: 100%; padding: 8px; background: #0f172a; border: 1px solid var(--border); color: white; border-radius: 4px; box-sizing: border-box;">
+                </div>
+                <div style="flex: 1;">
+                    <label style="display: block; font-size: 0.8rem; color: var(--text-sub); margin-bottom: 5px;">社会身份 / 职业</label>
+                    <input type="text" v-model="currentForm.role" placeholder="例如: 新手村向导" style="width: 100%; padding: 8px; background: #0f172a; border: 1px solid var(--border); color: white; border-radius: 4px; box-sizing: border-box;">
+                </div>
+            </div>
+
+            <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <label style="display: block; font-size: 0.85rem; color: var(--text-sub); margin-bottom: 10px;">🌟 潜意识人格基准 (OCEAN - 0.0 到 1.0)</label>
+                <div v-for="(val, key) in currentForm.ocean" :key="key" style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                    <span style="width: 120px; font-size: 0.8rem;">{{ oceanLabels[key] }}</span>
+                    <input type="range" v-model.number="currentForm.ocean[key]" min="0" max="1" step="0.01" style="flex: 1; accent-color: var(--primary);">
+                    <span style="width: 40px; font-size: 0.8rem; text-align: right; color: var(--primary); font-weight: bold;">{{ currentForm.ocean[key] }}</span>
+                </div>
+            </div>
+
+            <div>
+                <label style="display: block; font-size: 0.85rem; color: var(--text-sub); margin-bottom: 5px;">🧠 核心种子记忆 (每行一条，越详细越好)</label>
+                <textarea v-model="seedsText" rows="5" placeholder="例如：\n我从小在星空下长大，对宇宙充满好奇。\n我非常害怕蜘蛛，因为小时候被咬过。" style="width: 100%; padding: 10px; background: #0f172a; border: 1px solid var(--border); color: white; border-radius: 4px; box-sizing: border-box; resize: vertical; line-height: 1.5; font-family: inherit;"></textarea>
+            </div>
+
+            <button @click="saveCharacter" style="margin-top: 20px; width: 100%; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 6px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: 0.2s;">
+                <i class="fas fa-save"></i> 写入认知数据库 (ChromaDB)
+            </button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3><i class="fas fa-map"></i> 物理世界坐标网管理 (World)</h3>
+        <p style="color: var(--text-sub); font-size: 0.9rem;">编辑系统内合法的空间节点，供角色进行 Action 移动决策。</p>
+        <div style="text-align: center; padding: 20px; color: #64748b;">
+            (地图列表施工中...)
+        </div>
+    </div>
+</div>
+
+<script src="config.js"></script>
+</body>
+</html>

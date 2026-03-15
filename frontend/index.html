@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPC World Monitor v4.0</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.staticfile.net/vue/3.3.4/vue.global.prod.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+</head>
+<body>
+
+<div id="app" v-cloak> 
+    <aside class="sidebar">
+        <div class="panel-header" style="justify-content: space-between;">
+            <div class="app-title"><i class="fas fa-globe-asia"></i> World Map <span class="version">v4.0</span></div>
+            <button onclick="window.open('config.html', '_blank')" style="background: transparent; border: 1px solid var(--border); color: var(--text-sub); border-radius: 4px; padding: 4px 8px; cursor: pointer;">
+                <i class="fas fa-cog"></i> 中台配置
+            </button>
+        </div>
+
+        <div class="world-container">
+            <div v-if="loadingWorld" class="loading-tip">
+                <i class="fas fa-circle-notch fa-spin"></i> 正在同步世界构造...
+            </div>
+
+            <div v-for="(locInfo, locName) in groupedWorld" :key="locName" class="location-card">
+                
+                <div class="loc-header">
+                    <div class="loc-title">
+                        <i class="fas fa-map-marker-alt"></i> {{ locName }}
+                    </div>
+                    <div class="loc-desc">{{ locInfo.desc }}</div>
+                </div>
+
+                <div class="loc-chars">
+                    <div v-if="locInfo.chars.length === 0" class="empty-loc">
+                        此处暂无人员
+                    </div>
+                    
+                    <div v-for="char in locInfo.chars" :key="char.id" 
+                         class="char-chip"
+                         :class="{ active: selectedCharId === char.id, 'is-following': char.is_following }"
+                         @click="selectChar(char.id)">
+                        
+                        <div class="chip-avatar">
+                            {{ char.name[0] }}
+                        </div>
+                        
+                        <div class="chip-info">
+                            <span class="chip-name">{{ char.name }}</span>
+                            <span class="chip-role">{{ char.role }}</span>
+                        </div>
+                        
+                        <div class="status-indicator">
+                            <i v-if="char.is_following" class="fas fa-running" title="正在跟随玩家"></i>
+                            <div class="dot" :class="{ connected: isConnected && selectedCharId === char.id }"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <button class="btn-control btn-start" @click="startSession" :class="{ 'btn-disabled': isConnected || !selectedCharId }">
+                <i class="fas fa-link"></i> 建立连接
+            </button>
+            <button class="btn-control btn-end" @click="endSession" :class="{ 'btn-disabled': !isConnected }">
+                <i class="fas fa-power-off"></i> 断开
+            </button>
+        </div>
+
+        <div class="dashboard" v-if="stats">
+            <div class="dash-header">
+                <span class="dash-label">🧠 {{ currentDisplayName }} 的状态</span>
+                <span class="mood-tag">{{ stats.emotion }}</span>
+            </div>
+            <div class="trust-row">❤️ 信任: <span class="trust-val">{{ stats.trust }}</span></div>
+            <div class="pad-group">
+                <div class="pad-row" v-for="(val, idx) in stats.pad" :key="idx">
+                    <div class="pad-meta"><span>{{ ['P (愉悦)', 'A (激活)', 'D (掌控)'][idx] }}</span></div>
+                    <div class="progress-track">
+                        <div class="progress-text">{{ formatNum(val) }}</div>
+                        <div class="progress-bar" :style="getBarStyle(val)"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button class="btn-profile" @click="openProfile" style="margin-top: 0; flex: 1;">
+                    <i class="fas fa-chart-radar"></i> 心理画像
+                </button>
+                <button class="btn-profile" @click="openMemoryStream" style="margin-top: 0; flex: 1; background: rgba(139, 92, 246, 0.15); color: #a78bfa; border-color: rgba(139, 92, 246, 0.4);">
+                    <i class="fas fa-database"></i> 记忆流
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-area">
+        <header class="chat-header">
+            <div class="current-role-name">
+                <span v-if="currentLocation" class="header-loc-tag">📍 {{ currentLocation }}</span>
+                {{ currentDisplayName || '等待连接...' }}
+            </div>
+            <div class="connection-badge" :class="{ online: isConnected }">
+                <i class="fas fa-circle"></i> {{ isConnected ? 'Online' : 'Offline' }}
+            </div>
+        </header>
+
+        <div class="chat-container" id="chatContainer">
+            <div v-if="messages.length === 0" class="empty-state">
+                <i class="fas fa-satellite-dish"></i>
+                <p>请在左侧地图中选择角色</p>
+            </div>
+
+            <div v-for="(msg, index) in messages" :key="index" :class="['message-row', msg.role]">
+                
+                <span v-if="msg.role === 'system'" class="system-text">{{ msg.content }}</span>
+                
+                <div v-else-if="msg.role === 'user'" class="msg-bubble user-bubble">{{ msg.content }}</div>
+                
+                <template v-else>
+                    <div v-if="msg.thought" class="thought-bubble"><i class="far fa-lightbulb"></i> {{ msg.thought }}</div>
+                    
+                    <div class="msg-bubble npc-bubble">
+                        {{ msg.content }}
+                        
+                        <div v-if="msg.action && msg.action.type === 'move'" class="action-tag">
+                            <span v-if="msg.action.target === 'player'">
+                                ⚡ 开始跟随你
+                            </span>
+                            <span v-else>
+                                ⚡ 动身前往: {{ msg.action.target }}
+                            </span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <footer class="input-panel">
+            <input type="text" class="chat-input" v-model="userInput" @keyup.enter="sendMessage" 
+                   :placeholder="isConnected ? '输入对话...' : '等待连接...'" :disabled="!isConnected || loading">
+            <button class="btn-send" @click="sendMessage" :disabled="!isConnected || loading">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </footer>
+    </main>
+
+    <div class="modal-overlay" v-show="showProfile" @click.self="closeProfile">
+        <div class="profile-modal">
+            <div class="modal-header">
+                <h3>🧠 {{ currentDisplayName }} 的深度认知与心理画像</h3>
+                <button class="btn-close" @click="closeProfile"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="chart-container">
+                    <h4>🌟 大五人格潜意识基调 (OCEAN)</h4>
+                    <div id="oceanChart" class="echart-box"></div>
+                </div>
+                <div class="chart-container">
+                    <h4>📈 实时情绪波动轨迹 (PAD Trajectory)</h4>
+                    <div id="padChart" class="echart-box"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" v-show="showMemory" @click.self="closeMemory">
+        <div class="profile-modal memory-modal">
+            <div class="modal-header">
+                <h3>🌌 {{ currentDisplayName }} 的向量记忆流 (ChromaDB)</h3>
+                <button class="btn-close" @click="closeMemory"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body memory-body">
+                <div class="timeline-container">
+                    <div v-if="memoryStream.length === 0" style="color: #64748b; text-align: center;">暂无记忆数据...</div>
+                    
+                    <div v-for="mem in memoryStream" :key="mem.id" class="timeline-item" :class="'type-' + mem.metadata.type">
+                        <div class="timeline-dot">
+                            <i v-if="mem.metadata.type === 'background'" class="fas fa-seedling"></i>
+                            <i v-else-if="mem.metadata.type === 'conversation'" class="fas fa-comments"></i>
+                            <i v-else-if="mem.metadata.type === 'observation'" class="fas fa-eye"></i>
+                            <i v-else-if="mem.metadata.type === 'reflection'" class="fas fa-lightbulb"></i>
+                        </div>
+                        <div class="timeline-content">
+                            <div class="mem-meta">
+                                <span class="mem-time">{{ mem.metadata.timestamp }}</span>
+                                <span class="mem-type">{{ formatMemType(mem.metadata.type) }}</span>
+                                <span class="mem-importance" :title="'重要性评分: ' + mem.metadata.importance">
+                                    <i class="fas fa-star" v-for="n in Math.ceil(mem.metadata.importance/2)" :key="n"></i>
+                                </span>
+                            </div>
+                            <div class="mem-text">{{ mem.text }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

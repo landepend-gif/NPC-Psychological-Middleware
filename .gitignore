@@ -1,0 +1,10 @@
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 你的数据库文件 (也不要传上去，除非是测试数据)
+data/chromadb/
+data/saves/
+
+# 环境变量 (如果有 .env 文件)
+.env
