@@ -215,5 +215,36 @@ def save_character(data: CharacterConfigData):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+# 用于世界地图
+class LocationConfig(BaseModel):
+    name: str
+    desc: str
+    x: int
+    y: int
+
+@app.post("/config/location")
+def add_location(data: LocationConfig):
+    try:
+        path = os.path.join(BASE_DIR, "config", "world.json")
+        world = json.load(open(path, 'r', encoding='utf-8'))
+        
+        # 写入新地点
+        world["locations"][data.name] = {
+            "desc": data.desc,
+            "x": data.x,
+            "y": data.y
+        }
+        
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(world, f, ensure_ascii=False, indent=4)
+        
+        # 同步更新内存中的世界管理器
+        world_mgr.config_data = world
+        world_mgr.locations_map = world["locations"]
+        
+        return {"status": "success", "message": f"地点 {data.name} 已创建"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

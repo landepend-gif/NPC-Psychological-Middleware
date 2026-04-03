@@ -3,11 +3,14 @@ import ollama # 保留 Ollama 用于本地 Embedding (速度快/免费)
 import uuid
 import datetime
 import os
+# 关闭 Tokenizer 的内部并行，防止在后台子线程中死锁崩溃
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import re
 import json
 from openai import OpenAI # 引入 OpenAI 库
 from dotenv import load_dotenv
 from core.llm_client import client
+from transformers import pipeline
 
 # 获取项目根目录
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,14 +23,9 @@ class MemoryManager:
     def __init__(self, npc_name, llm_model='deepseek-ai/DeepSeek-V3.2'):
         self.npc_name = npc_name
         self.llm_model = llm_model
-
-        # 1. 使用共享的 LLM 客户端
         self.client = client
-
-        # 加载 Prompt
         self.prompts = self._load_prompts()
 
-        # 确保路径存在
         os.makedirs(DB_PATH, exist_ok=True)
 
         #  2: 给 ChromaDB 客户端改名，防止和上面的 self.client 冲突
@@ -39,6 +37,20 @@ class MemoryManager:
         self.embedding_model = 'nomic-embed-text' 
         self.recent_importance_accumulator = 0
         self.REFLECTION_THRESHOLD = 20 
+
+        # 从本地文件夹加载 Transformer 评分中枢
+        try:
+            # 使用项目根目录拼接出绝对路径，彻底避免相对路径报错
+            local_model_path = os.path.join(BASE_DIR, "models", "roberta-jd")
+            print(f"⏳ 正在为 {npc_name} 从本地读取 Transformer ({local_model_path})...")
+            
+            # 直接将路径传给 model 参数
+            self.scorer = pipeline("text-classification", model=local_model_path)
+            print(f"✅ {npc_name} 的评分中枢加载完成！")
+            
+        except Exception as e:
+            print(f"❌ 模型加载失败，将使用默认分数: {e}")
+            self.scorer = None
 
     def _load_prompts(self):
         try:
@@ -82,35 +94,41 @@ class MemoryManager:
         )
         print(f"💾 [存入]: '{text}' (类型:{type}, 重要性:{importance})")
 
-        if type == "observation":
+        # 修复反思断层，让普通聊天和观察都能触发反思
+        if type in ["observation", "conversation"]:
             self.recent_importance_accumulator += importance
+            
             if self.recent_importance_accumulator >= self.REFLECTION_THRESHOLD:
                 self._trigger_reflection()
-                self.recent_importance_accumulator = 0 
+                self.recent_importance_accumulator = 0
 
-    # --- 重要性打分 (调用 API) ---
+    # --- 重要性打分 (调用 API改为纯本地transformer) ---
     def _evaluate_importance(self, text):
-        template = self.prompts.get("importance_scoring")
-        if template:
-            prompt = template.format(npc_name=self.npc_name, description=text)
-        else:
-            prompt = f"请对以下记忆片段对于{self.npc_name}的重要性打分(1-10)。记忆：{text}"
-            
+        if not self.scorer:
+            return 5 # 如果模型没加载成功，默认返回5分
+
         try:
-            # 这里调用 self.client (OpenAI) 
-            response = self.client.chat.completions.create(
-                model=self.llm_model,
-                messages=[{'role': 'user', 'content': prompt}],
-                temperature=0.1,
-                max_tokens=10 
-            )
-            content = response.choices[0].message.content.strip()
-            match = re.search(r'\d+', content)
-            if match:
-                return max(1, min(10, int(match.group())))
-            return 5
+            # 截断文本防止超长报错 (一般模型 max_length 是 512)
+            safe_text = text[:500] 
+            
+            # Transformer 前向推理 (耗时通常在 20ms 左右)
+            result = self.scorer(safe_text)[0]
+            
+            # result 格式类似于：{'label': 'positive (stars 4 and 5)', 'score': 0.98}
+            # 我们将置信度 score (0.5 ~ 1.0) 映射放大到 1~10 分
+            raw_score = result['score']
+            
+            # 数学映射逻辑：如果情绪极其强烈(无论是极好还是极坏)，置信度都会很高
+            # 假设 0.5 是中立，1.0 是极端。
+            importance_float = abs(raw_score - 0.5) * 20 
+            
+            # 向上取整并限制在 1-10 之间
+            final_importance = max(1, min(10, int(importance_float) + 1))
+            
+            return final_importance
+            
         except Exception as e:
-            print(f"❌ 评分失败: {e}")
+            print(f"❌ 评分计算异常: {e}")
             return 5
 
     # --- 反思 (调用 API) ---
@@ -142,16 +160,58 @@ class MemoryManager:
         except Exception as e:
             print(f"❌ 反思失败: {e}")
 
-    # --- 检索 ---
+    # --- 检索 (融合重要性加权的混合检索) ---
     def search_memory(self, query, n_results=3):
         vec = self.get_embedding(query)
         if not vec: return []
 
+        # 第一步：先用向量库粗筛出候选池（取需要的 3 倍数量，扩大召回率）
+        candidate_count = n_results * 3
         results = self.collection.query(
             query_embeddings=[vec], 
-            n_results=n_results
+            n_results=candidate_count,
+            include=["documents", "metadatas", "distances"] # 必须把距离和元数据拿出来
         )
-        return results['documents'][0] if results['documents'] else []
+        
+        # 如果什么都没搜到，直接返回空
+        if not results['documents'] or not results['documents'][0]:
+            return []
+
+        docs = results['documents'][0]
+        metas = results['metadatas'][0]
+        distances = results['distances'][0] # ChromaDB 默认距离越小越相似
+
+        # 第二步：混合打分重排 (Re-ranking)
+        scored_memories = []
+        for i in range(len(docs)):
+            doc = docs[i]
+            meta = metas[i]
+            dist = distances[i]
+            
+            # 获取存入时的重要性分数，如果没有则默认为 5 分
+            importance = meta.get('importance', 5)
+            
+            # 1. 将 ChromaDB 的距离转换为相似度得分 (距离越小，得分越高)
+            sim_score = 1 / (1 + dist) 
+            
+            # 2. 归一化重要性 (将 1-10 分映射到 0.1-1.0)
+            imp_score = importance / 10.0
+            
+            # 3. 黄金检索公式：语义相似度占 70%，记忆重要性占 30%
+            final_score = (0.7 * sim_score) + (0.3 * imp_score)
+            
+            scored_memories.append({
+                "doc": doc,
+                "score": final_score
+            })
+            
+        # 第三步：按最终混合得分从高到低排序
+        scored_memories.sort(key=lambda x: x["score"], reverse=True)
+        
+        # 第四步：切片返回得分最高的前 n_results 条纯文本记忆
+        final_docs = [item["doc"] for item in scored_memories[:n_results]]
+        
+        return final_docs
 
     # --- 获取所有记忆流 (供前端可视化展示) ---
     def get_all_memories(self, limit=50):

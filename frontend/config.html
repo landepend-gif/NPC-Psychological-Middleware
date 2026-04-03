@@ -6,6 +6,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.staticfile.net/vue/3.3.4/vue.global.prod.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <style>
         /* 针对配置中心的专属简单覆盖样式 */
         body { background: #0b1120; padding: 20px; overflow-y: auto; }
@@ -76,13 +77,11 @@
         </div>
     </div>
 
+
     <div class="card">
-        <h3><i class="fas fa-map"></i> 物理世界坐标网管理 (World)</h3>
-        <p style="color: var(--text-sub); font-size: 0.9rem;">编辑系统内合法的空间节点，供角色进行 Action 移动决策。</p>
-        <div style="text-align: center; padding: 20px; color: #64748b;">
-            (地图列表施工中...)
-        </div>
-    </div>
+    <h3>🗺️ 世界地图概览 (点击空白处创建新地点)</h3>
+    <div id="world-map" style="width: 100%; height: 400px; background: #0f172a; border-radius: 8px;"></div>
+</div>
 </div>
 
 <script src="config.js"></script>

@@ -7,6 +7,7 @@ createApp({
             loading: false,
             allCharacters: {},
             allSeeds: {},
+            worldConfig: {}, //存放世界地图配置
             isEditing: false, // 标记当前是修改还是新建
             
             // 表单绑定的数据
@@ -29,9 +30,10 @@ createApp({
     },
     mounted() {
         this.loadConfigs();
+        this.loadWorldConfig(); // 页面加载时请求世界地图
     },
     methods: {
-        // 1. 从后端拉取所有 JSON 配置
+        // 1. 从后端拉取所有 JSON 配置 (角色信息)
         async loadConfigs() {
             try {
                 const res = await fetch(`${API_BASE}/config/all`);
@@ -44,6 +46,116 @@ createApp({
                 alert("拉取配置失败，请检查后端是否运行！");
             }
         },
+        
+        // 拉取地图坐标配置
+        async loadWorldConfig() {
+            try {
+                const res = await fetch(`${API_BASE}/world`);
+                this.worldConfig = await res.json();
+                
+                // 确保 DOM 渲染完毕后再初始化 ECharts
+                this.$nextTick(() => {
+                    this.initWorldMap();
+                });
+            } catch (e) {
+                console.error("加载世界配置失败", e);
+            }
+        },
+
+        // 初始化 ECharts 地图
+        initWorldMap() {
+            const chartDom = document.getElementById('world-map');
+            if (!chartDom) return; 
+            
+            // 使用 echarts.getInstanceByDom 防止重复初始化报错
+            let myChart = echarts.getInstanceByDom(chartDom);
+            if (!myChart) {
+                myChart = echarts.init(chartDom);
+            }
+            
+            // 处理后端传来的地点数据
+            const dataPoints = Object.entries(this.worldConfig.locations || {}).map(([name, info]) => {
+                let desc = typeof info === 'string' ? info : info.desc;
+                let x = typeof info === 'object' && info.x !== undefined ? info.x : Math.floor(Math.random() * 400 + 50);
+                let y = typeof info === 'object' && info.y !== undefined ? info.y : Math.floor(Math.random() * 400 + 50);
+                return { name, value: [x, y], desc };
+            });
+
+            const option = {
+                tooltip: {
+                    formatter: function (params) {
+                        return `<b style="color:#3b82f6;">${params.data.name}</b><br/>${params.data.desc}`;
+                    }
+                },
+                xAxis: { min: 0, max: 500, show: false }, 
+                yAxis: { min: 0, max: 500, show: false },
+                series: [{
+                    type: 'scatter',
+                    data: dataPoints,
+                    symbolSize: 24,
+                    itemStyle: {
+                        color: '#3b82f6',
+                        shadowBlur: 10,
+                        shadowColor: 'rgba(59, 130, 246, 0.5)'
+                    },
+                    label: { 
+                        show: true, 
+                        formatter: '{b}', 
+                        color: '#fff', 
+                        position: 'bottom',
+                        distance: 10,
+                        fontSize: 13
+                    }
+                }]
+            };
+
+            myChart.setOption(option);
+
+            // 监听点击地图空白处事件
+            myChart.getZr().off('click'); 
+            myChart.getZr().on('click', (params) => {
+                // 如果点击在已经存在的圆点上，则不触发新建
+                if (params.target) return;
+
+                // 转换点击的像素坐标为数据坐标
+                const pointInPixel = [params.offsetX, params.offsetY];
+                const pointInGrid = myChart.convertFromPixel({ seriesIndex: 0 }, pointInPixel);
+
+                if (pointInGrid) {
+                    const locName = prompt("📍 [创建新地点]\n请输入新地点名称 (如: 藏经阁):");
+                    if (!locName) return;
+                    
+                    const locDesc = prompt(`请描述一下 [${locName}] 的环境:`);
+                    if (!locDesc) return;
+
+                    // 发送创建请求
+                    this.createNewLocation(locName, locDesc, Math.round(pointInGrid[0]), Math.round(pointInGrid[1]));
+                }
+            });
+        },
+
+        // 提交新地点到后端
+        async createNewLocation(name, desc, x, y) {
+            try {
+                const res = await fetch(`${API_BASE}/config/location`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, desc, x, y })
+                });
+                const result = await res.json();
+                
+                if (result.status === 'success') {
+                    // 创建成功后重新拉取一次地图刷新画面
+                    this.loadWorldConfig();
+                } else {
+                    alert("创建失败: " + result.message);
+                }
+            } catch (e) {
+                alert("网络错误，无法创建地点！请检查 server.py 接口是否配置。");
+            }
+        },
+        // ==========================================
+
 
         // 2. 点击左侧列表，把数据填入右侧表单
         editCharacter(id) {
