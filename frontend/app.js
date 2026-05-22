@@ -203,15 +203,15 @@ createApp({
             }
             const hist = this.padHistory[charId];
             const now = new Date();
-            const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+            const timeStr = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
             
             hist.time.push(timeStr);
             hist.P.push(padValues[0]);
             hist.A.push(padValues[1]);
             hist.D.push(padValues[2]);
             
-            // 最多保留最近的 20 个数据点，防止折线图太挤
-            if (hist.time.length > 20) {
+            // 120 个点 * 3秒/点 = 折线图现在可以展示过去 6 分钟的全局情绪轨迹
+            if (hist.time.length > 120) {
                 hist.time.shift(); hist.P.shift(); hist.A.shift(); hist.D.shift();
             }
             

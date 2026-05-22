@@ -41,7 +41,7 @@ class MemoryManager:
         # 从本地文件夹加载 Transformer 评分中枢
         try:
             # 使用项目根目录拼接出绝对路径，彻底避免相对路径报错
-            local_model_path = os.path.join(BASE_DIR, "models", "roberta-jd")
+            local_model_path = os.path.join(BASE_DIR, "models", "roberta-jd-finetuned")
             print(f"⏳ 正在为 {npc_name} 从本地读取 Transformer ({local_model_path})...")
             
             # 直接将路径传给 model 参数

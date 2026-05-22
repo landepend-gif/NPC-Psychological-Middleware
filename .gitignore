@@ -11,3 +11,6 @@ data/saves/
 
 #models 目录下的模型文件
 models/
+
+#训练日志文件
+training_logs/
